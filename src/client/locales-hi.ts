@@ -365,6 +365,7 @@ export const hi: Record<string, string> = {
   sideChatBlockExpandAria: 'आगे की {hidden} पंक्तियाँ विस्तृत करें',
   sideChatBlockSignal: 'सिग्नल से समाप्त: {signal}',
   sideChatBlockExitCode: 'एग्जिट कोड {code}',
+  sideChatBlockNoExitCode: 'कोई एग्जिट कोड नहीं',
   sideChatBlockRunning: 'चल रहा है',
   sideChatBlockFailed: 'विफल',
   sideChatBlockDone: 'पूर्ण',

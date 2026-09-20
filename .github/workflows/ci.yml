@@ -151,9 +151,14 @@ jobs:
       # Pin the DSH CLI the lane mounts into; the profile's bundle stack
       # (dsh-base / dsh-web-app) resolves from this installation. Keep in
       # step with the plugin's @deepseek-ai/* peer range when bumping.
-      # DSH 0.1.5-rc.2 is the `next` dist-tag on npm (`latest` still points
-      # at rc.1); the lanes speak the slash-only RPC dialect
-      # (tests/e2e/host-protocol.ts).
+      # 0.1.6-alpha.2 is the npm `alpha` dist-tag (`latest`/`next` still point
+      # at 0.1.5-rc.2). The lane moved to the alpha line with the plugin's dev
+      # tree: it is what the maintainer's desktop runs, and the whole train is
+      # published EXCEPT @deepseek-ai/dsh-code-runtime, which upstream dropped
+      # from dsh-tools' peers in this line (so the plugin's dev tree dropped
+      # that hoist too). The lanes speak the slash-only RPC dialect
+      # (tests/e2e/host-protocol.ts). The rc.2 line stays supported by the
+      # peer range (^0.1.5-rc.1) regardless of this pin.
       #
       # The larger heap is the fix for one of the two ways this step used to
       # die (runs 34490912649 and 34363627184 on the alpha line): the pinned
@@ -175,7 +180,7 @@ jobs:
       - name: Install dsh CLI (pinned)
         env:
           NODE_OPTIONS: --max-old-space-size=4096
-        run: npm install -g @deepseek-ai/dsh@0.1.5-rc.2
+        run: npm install -g @deepseek-ai/dsh@0.1.6-alpha.2
 
       # lib/ is gitignored; the tarball is produced from this build.
       - name: Build and pack the npm tarball
