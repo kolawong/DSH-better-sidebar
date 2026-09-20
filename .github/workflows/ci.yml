@@ -151,14 +151,19 @@ jobs:
       # Pin the DSH CLI the lane mounts into; the profile's bundle stack
       # (dsh-base / dsh-web-app) resolves from this installation. Keep in
       # step with the plugin's @deepseek-ai/* peer range when bumping.
-      # 0.1.6-alpha.2 is the npm `alpha` dist-tag (`latest`/`next` still point
-      # at 0.1.5-rc.2). The lane moved to the alpha line with the plugin's dev
-      # tree: it is what the maintainer's desktop runs, and the whole train is
-      # published EXCEPT @deepseek-ai/dsh-code-runtime, which upstream dropped
-      # from dsh-tools' peers in this line (so the plugin's dev tree dropped
-      # that hoist too). The lanes speak the slash-only RPC dialect
-      # (tests/e2e/host-protocol.ts). The rc.2 line stays supported by the
-      # peer range (^0.1.5-rc.1) regardless of this pin.
+      # The lane stays on 0.1.5-rc.2 while the plugin's DEV TREE follows the
+      # npm `alpha` line (0.1.6-alpha.2, what the maintainer's desktop runs):
+      # pinning the lane to alpha.2 makes THIS job fail on an unmodified main —
+      # the shell boots into the new-session empty state, no session scope
+      # reaches the sidebar, and `[data-dsh-better-sidebar] [title]` never
+      # attaches (mount.e2e.ts:216 + perf.e2e.ts:182; probe branch
+      # `probe/dsh-alpha2-ci-pin` = origin/main + this one-line pin, run
+      # 35484961070, red). Until the lane learns to activate the seeded session
+      # on the alpha line, keep it on the released pin: it still exercises the
+      # slash-only RPC dialect (tests/e2e/host-protocol.ts) the plugin targets,
+      # and the peer range (^0.1.5-rc.1) covers rc.2.
+      # The dev tree's alpha.2 deltas are recorded in
+      # docs/plans/2026-09-17-dsh-0.1.6-alpha.2-adaptation.md.
       #
       # The larger heap is the fix for one of the two ways this step used to
       # die (runs 34490912649 and 34363627184 on the alpha line): the pinned
@@ -180,7 +185,7 @@ jobs:
       - name: Install dsh CLI (pinned)
         env:
           NODE_OPTIONS: --max-old-space-size=4096
-        run: npm install -g @deepseek-ai/dsh@0.1.6-alpha.2
+        run: npm install -g @deepseek-ai/dsh@0.1.5-rc.2
 
       # lib/ is gitignored; the tarball is produced from this build.
       - name: Build and pack the npm tarball
