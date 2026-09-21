@@ -14,7 +14,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest'
 import { readFileSync, readdirSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { resolve, sep } from 'node:path'
 import { colorAlpha, effectiveTokenValue, tokenValue } from '../src/client/theme.ts'
 
 afterEach(() => {
@@ -91,11 +91,30 @@ describe('effectiveTokenValue', () => {
  * `FileTypeIcon` artwork from a platform module (the host owns those pixels
  * and its own palette), and everything the plugin renders around them —
  * including the colored tab glyphs — rides theme tokens. So the guard is
- * simply that no plugin module carries a color literal, and that no icon
- * dataset sneaked back in as a chunk.
+ * simply that no plugin module carries a color literal, that every module
+ * stylesheet paints `color` from a token, and that no icon dataset sneaked
+ * back in as a chunk.
  */
 // jsdom has no file:// import.meta.url; vitest runs from the repo root.
 const ROOT = process.cwd()
+
+/** `color` as a property — never `background-color` / `scrollbar-color` / `-webkit-text-fill-color`. */
+const COLOR_PROPERTY = /(?:^|[;{\s])color\s*:\s*([^;}]+)/g
+
+/** Values that name no paint of their own and are therefore exempt. */
+const INERT_COLOR = /^(?:inherit|currentcolor|transparent)$/i
+
+/** A token allowed by the contract: the plugin's own `--dsw-*` or the host's `--ds-*`. */
+function isThemeToken(name: string): boolean {
+  return name.startsWith('dsw-') || name.startsWith('ds-')
+}
+
+/** Every `*.module.css` sheet under `src/client/`, as repo-relative POSIX paths. */
+function moduleStylesheets(): string[] {
+  return readdirSync(resolve(ROOT, 'src/client'), { recursive: true, encoding: 'utf8' })
+    .filter(name => name.endsWith('.module.css'))
+    .map(name => `src/client/${name.split(sep).join('/')}`)
+}
 
 describe('skin contract: the plugin owns no color of its own', () => {
   it('the icon modules carry no color literals', () => {
@@ -121,113 +140,33 @@ describe('skin contract: the plugin owns no color of its own', () => {
     }
   })
 
+  it('every module stylesheet paints `color` from a theme token', () => {
+    const sheets = moduleStylesheets()
+    // Guard the scan itself: a glob that silently matches nothing would make
+    // this contract vacuous.
+    expect(sheets.length).toBeGreaterThan(5)
+    for (const file of sheets) {
+      const styles = readFileSync(resolve(ROOT, file), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')
+      for (const declaration of styles.matchAll(COLOR_PROPERTY)) {
+        const value = declaration[1]!.trim()
+        // `color: inherit` / `currentcolor` / `transparent` is the plugin
+        // deliberately taking the surrounding color, not painting one.
+        if (INERT_COLOR.test(value)) continue
+        // Dereference every var() — `color-mix()` chains are fine as long as
+        // the whole expression bottoms out in theme tokens.
+        const tokens = [...value.matchAll(/var\(--([a-z0-9-]+)/gi)].map(match => match[1]!)
+        expect(tokens.length, `${file}: color: ${value}`).toBeGreaterThan(0)
+        for (const name of tokens) expect(isThemeToken(name), `${file}: color: ${value}`).toBe(true)
+      }
+    }
+  })
+
   it('no icon dataset is shipped as a lazy chunk', () => {
     const chunkDir = resolve(ROOT, 'src/client/chunks')
     const chunks = readdirSync(chunkDir).filter(name => /\.tsx?$/.test(name))
     for (const name of chunks) {
       const source = readFileSync(resolve(chunkDir, name), 'utf8')
       expect(source, name).not.toMatch(/#[0-9a-fA-F]{6}\b/)
-    }
-  })
-})
-
-/**
- * Task-page migration guard (the shadcn/ui rework).
- *
- * The vendored components under `src/client/ui/**` and every migrated
- * task-page module must take their colors from a DSH token — either directly
- * (`var(--dsw-…)`) or through one of the shadcn aliases bridged in
- * `src/client/ui/theme.css` (`--background`, `--border`, …). Three ways that
- * can rot silently:
- *
- * 1. A color literal (`#hex`, `rgb()`, `oklch()`, …) — the host skin can no
- *    longer repaint it, and the value stops flipping with dark mode.
- * 2. A Tailwind default-palette class (`bg-blue-500`, `text-white`) — its
- *    value is defined by Tailwind's own theme, not by DSH.
- * 3. A `var()` in a migrated stylesheet pointing at neither a `--dsw-*` token
- *    nor a bridged alias — a typo falls back to the initial color.
- *
- * Comments are stripped first: prose legitimately quotes the old values (the
- * Badge docstring records that upstream's `text-white` became the
- * `--destructive-foreground` token), and upstream issue numbers look like
- * three-digit hex colors.
- */
-const VENDORED_UI_DIR = 'src/client/ui'
-const MIGRATED_TASK_FILES = [
-  'src/client/SubagentView.tsx',
-  'src/client/SubagentView.module.css',
-  'src/client/TasksGraph.tsx',
-  'src/client/TasksTree.tsx',
-  'src/client/TaskWindow.tsx',
-  'src/client/TeamBoard.tsx',
-  'src/client/JobsDrawer.tsx',
-  'src/client/TasksPopovers.tsx',
-  'src/client/AnchoredPopover.tsx',
-  'src/client/tasks-shared.tsx',
-  'src/client/tasks-canvas.module.css',
-]
-
-/** Drop block comments and whole-line `//` comments (URLs/strings stay intact). */
-function stripComments(source: string): string {
-  return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '')
-}
-
-/** Any spelled-out color value (the skin contract's forbidden set). */
-const COLOR_LITERAL = /#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?|hwb|oklch|oklab|lab|lch|color-mix|light-dark)\(/
-
-/** Tailwind's default palette families, which are not DSH tokens. */
-const PALETTE_CLASS
-  = /\b(?:bg|text|border|ring|fill|stroke|from|via|to|outline|divide|shadow|accent|caret|decoration)-(?:slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose|white|black)(?:-\d{2,3})?\b/
-
-/** Paint declarations whose value must resolve to a token. */
-const PAINT_DECLARATION
-  = /(?:^|;)\s*(background(?:-color|-image)?|color|border(?:-(?:top|right|bottom|left))?-color|border|outline(?:-color)?|fill|stroke|box-shadow|text-decoration-color|caret-color|accent-color|scrollbar-color)\s*:\s*([^;}]+)/g
-
-/** A paint declaration naming no token at all may only be inert. */
-const INERT_PAINT = /^(?:none|transparent|currentcolor|inherit|initial|unset|revert)$/i
-
-/** Every variable the theme bridge defines (or forwards) — the alias allowlist. */
-const THEME_ALIASES = new Set(
-  [...readFileSync(resolve(ROOT, `${VENDORED_UI_DIR}/theme.css`), 'utf8').matchAll(/--([a-z0-9-]+)\s*:/g)]
-    .map(match => match[1]),
-)
-
-/** `--dsw-*` is the contract; the bridged aliases and runtime vars are the only indirection. */
-function tokenAllows(name: string): boolean {
-  return name.startsWith('dsw-') || name.startsWith('tw-') || name.startsWith('radix-') || THEME_ALIASES.has(name)
-}
-
-describe('skin contract: the migrated task page and the vendored ui/ own no color', () => {
-  const uiFiles = readdirSync(resolve(ROOT, VENDORED_UI_DIR))
-    .filter(name => /\.(?:tsx|ts|css)$/.test(name))
-    .map(name => `${VENDORED_UI_DIR}/${name}`)
-  const files = [...uiFiles, ...MIGRATED_TASK_FILES]
-
-  it('covers the vendored components and the migrated task-page modules', () => {
-    expect(uiFiles.length).toBeGreaterThan(10)
-    for (const file of files) expect(readFileSync(resolve(ROOT, file), 'utf8').length, file).toBeGreaterThan(0)
-  })
-
-  it.each(files)('%s carries no color literal', (file) => {
-    expect(stripComments(readFileSync(resolve(ROOT, file), 'utf8')), file).not.toMatch(COLOR_LITERAL)
-  })
-
-  it.each(files)('%s uses no Tailwind default-palette class', (file) => {
-    expect(stripComments(readFileSync(resolve(ROOT, file), 'utf8')), file).not.toMatch(PALETTE_CLASS)
-  })
-
-  it('binds every paint declaration in the migrated stylesheets to a token', () => {
-    for (const file of files.filter(name => name.endsWith('.css'))) {
-      const styles = stripComments(readFileSync(resolve(ROOT, file), 'utf8'))
-      for (const declaration of styles.matchAll(PAINT_DECLARATION)) {
-        const [, property, value] = declaration
-        const vars = [...(value ?? '').matchAll(/var\(--([a-z0-9-]+)/gi)].map(match => match[1] ?? '')
-        if (vars.length === 0) {
-          expect(INERT_PAINT.test((value ?? '').trim()), `${file}: ${property}: ${value}`).toBe(true)
-          continue
-        }
-        for (const name of vars) expect(tokenAllows(name), `${file}: ${property}: var(--${name})`).toBe(true)
-      }
     }
   })
 })

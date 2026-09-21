@@ -83,8 +83,7 @@
     "test:mount:aggregate": "bash scripts/e2e-aggregate-mount.sh",
     "clean": "node -e \"require('node:fs').rmSync('lib',{recursive:true,force:true})\"",
     "check:consumer-types": "bash scripts/check-consumer-types.sh",
-    "lint": "eslint .",
-    "ui:css": "node scripts/ui-css.mjs"
+    "lint": "eslint ."
   },
   "license": "MIT",
   "peerDependencies": {
@@ -138,18 +137,15 @@
     "@codemirror/state": "^6.7.1",
     "@codemirror/view": "^6.43.8",
     "@lezer/highlight": "^1.2.3",
-    "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "diff": "^9.0.0",
     "dompurify": "^3.4.14",
     "mermaid": "^11.16.1",
     "node-pty": "^1.1.0",
-    "radix-ui": "^1.6.7",
     "react-icons": "5.7.0",
     "rxjs": "^7.8.2",
     "schemastery": "^3.18.0",
     "simple-icons": "^15.0.0",
-    "tailwind-merge": "^3.7.0",
     "ws": "^8.18.0"
   },
   "devDependencies": {
@@ -180,7 +176,6 @@
     "@huanlin/dsh-plugin-better-locale": "^0.1.0",
     "@playwright/test": "^1.62.1",
     "@shikijs/langs": "^4.3.1",
-    "@tailwindcss/postcss": "^4.3.3",
     "@types/mdast": "^4.0.4",
     "@types/node": "^24.0.0",
     "@types/react": "~18.3.1",
@@ -208,11 +203,9 @@
     "micromark-util-sanitize-uri": "^2.0.1",
     "micromark-util-symbol": "^2.0.1",
     "micromark-util-types": "^2.0.2",
-    "postcss": "^8.5.26",
     "react": "^18.2.0",
     "react-dom": "18.2.0",
     "shiki": "^4.3.1",
-    "tailwindcss": "^4.3.3",
     "tsdown": "^0.22.2",
     "typescript": "^5.6.0",
     "typescript-eslint": "^8.69.0",
